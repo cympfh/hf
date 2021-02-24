@@ -17,28 +17,33 @@ $ hf config hf_dir
 
 Add a photo/image.
 
-```bash
+```
 $ hf add <OBJECT> [ --tag <TAG> ] [ --tag <TAG> ] [OPTIONS]
 
 OBJECT
-    URL (http://, https://)
+    URL (http://, https://) for Photos/Images
         Record the URL.
-        Use --download, -d to save the file (under hf_dir).
+        Use --download, -d to save the file
+
+    URL for tweets
+        including photos
+        Use --download, -d to save the files
+        Required: `twurl`
 
     File path
         Record the full abs path.
-        Use --copy, -c to copy the file (under hf_dir).
+        Use --copy, -c to copy the file
 ```
 
 This is an alias for `hf add ...`.
 
-```bash
+```
 $ hf a ...
 ```
 
 Delete photo.
 
-```bash
+```
 $ hf del <OBJECT>
 
 OBJECT
@@ -52,7 +57,7 @@ OBJECT
 
 List up photos/images.
 
-```bash
+```
 $ hf tail [ -n <N> ]
 ```
 
@@ -68,24 +73,24 @@ $ hf grep -a <TAG> <TAG> ...  # AND-search
 
 List up tags.
 
-```bash
+```
 $ hf tags
 ```
 
 Add tags on a photo/image.
 
-```bash
+```
 $ hf tags add <OBJECT> <TAG> [<TAG>...]
 ```
 
 Delete tags from a photo/image.
 
-```bash
+```
 $ hf tags del <OBJECT> <TAG> [<TAG>...]
 ```
 
 Inspect a photo/image.
 
-```bash
+```
 $ hf show <OBJECT>
 ```
