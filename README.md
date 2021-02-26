@@ -1,6 +1,6 @@
 # hf
 
-an EXPERIMENTAL PHOTO MANAGER
+An EXPERIMENTAL Tag-based Photos/Images Manager
 
 ## UNIMPLEMENTED Features
 
