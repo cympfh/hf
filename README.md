@@ -2,18 +2,17 @@
 
 An EXPERIMENTAL Tag-based Photos/Images Manager
 
-## UNIMPLEMENTED Features
-
-Cache files are under `hf_dir`
+## Configure
 
 ```bash
-# set
-$ hf config hf_dir "~/Dropbox/hf/"
-
-# check
-$ hf config hf_dir
-~/Dropbox/hf/
+export HF_DIR=/path/to/hf/cache/dir
 ```
+
+## Requirements
+
+- sqlite3
+
+## Commands
 
 Add a photo/image.
 
@@ -52,7 +51,7 @@ OBJECT
     File path
         ...
     Object ID
-        This can viewed with `hf inspect` or from the output of `hf add`
+        This can viewed with `hf show` or from the output of `hf add`
 ```
 
 List up photos/images.
@@ -94,3 +93,22 @@ Inspect a photo/image.
 ```
 $ hf show <OBJECT>
 ```
+
+## TODO
+
+- TODO add
+    - [x] Check duplication [2021/02/27 (Sat) 00:23]
+    - [x] Files [2021/02/26 (Fri) 23:38]
+    - [x] Image Url [2021/02/27 (Sat) 00:20]
+    - [ ] Tweet Url
+- DONE del [2021/02/27 (Sat) 01:22]
+- TODO grep
+    - [x] Single Tag [2021/02/26 (Fri) 23:42]
+    - [ ] AND grep
+    - [ ] OR grep
+- TODO tags
+    - [ ] List up
+    - [ ] add
+    - [ ] del
+- DONE tail
+- DONE show [2021/02/27 (Sat) 01:22]

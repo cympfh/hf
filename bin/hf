@@ -1,0 +1,299 @@
+#!/bin/bash
+
+# CLI Utility
+#
+hf-help() {
+    hf-logo
+    cat <<EOM >&2
+
+SYNOPSIS
+
+    hf {add,del,show} <OBJECT>
+    hf grep <TAG>
+    hf tail
+EOM
+}
+
+hf-logo() {
+    printf "\e[32m"
+    cat <<EOM >&2
+     _      __
+    | |    / _|
+    | |__ | |_
+    | '_ \|  _|
+    | | | | |
+    |_| |_|_|
+EOM
+    printf "\e[0m"
+}
+
+info() {
+    printf "\e[32m[$(date "+%Y-%m-%d %H:%M:%S")] $@\e[0m\n" >&2
+}
+warn() {
+    printf "\e[33m[$(date "+%Y-%m-%d %H:%M:%S")] $@\e[0m\n" >&2
+}
+error() {
+    printf "\e[31m[$(date "+%Y-%m-%d %H:%M:%S")] $@\e[0m\n" >&2
+    exit 1
+}
+
+# Config
+#
+if [ -z "$HF_DIR" ]; then
+    hf-logo
+    error "Error: \$HF_DIR is unset. See Document at https://github.com/cympfh/hf/blob/main/README.md"
+fi
+
+if [ ! -d "$HF_DIR" ]; then
+    mkdir -p "$HF_DIR"
+fi
+
+# Database
+#
+HF_DB="$HF_DIR/db"
+
+db() {
+    if [ $# -eq 0 ]; then
+        sqlite3 -separator "	" "$HF_DB"
+    else
+        sqlite3 -separator "	" "$HF_DB" "$1"
+    fi
+}
+
+db-init() {
+    if [ ! -f "$HF_DB" ]; then
+        hf-logo
+        db <<EOM
+CREATE TABLE objects (
+    id INTEGER PRIMARY KEY,
+    value TEXT
+)
+EOM
+        db <<EOM
+CREATE TABLE images (
+    id INTEGER,
+    value TEXT
+)
+EOM
+        db <<EOM
+CREATE TABLE tags (
+    id INTEGER,
+    tag TEXT
+)
+EOM
+        info "DB initialized"
+    fi
+}
+
+db-init
+
+# hf Utility
+#
+object-type() {
+    OBJECT="$1"
+    if [ -z "$OBJECT" ]; then
+        error "Object required"
+    elif ( echo "$OBJECT" | grep '^[0-9]*$' >/dev/null ); then
+        echo ID
+    elif [ -f "$OBJECT" ] && ( file "$OBJECT" | grep "image data," >/dev/null ); then
+        echo FILE
+    elif ( echo "$OBJECT" | grep '^https\?://' >/dev/null ) &&
+        ( curl -sLI "$OBJECT" | grep content-type | grep "image/" >/dev/null ); then
+        echo URL
+    else
+        error "Unknown Object: $OBJECT"
+    fi
+}
+
+regularize() {
+    OBJECT="$1"
+    if [ -z "$OBJECT" ]; then
+        error "No Object passed"
+    fi
+    case "$( object-type "$OBJECT" )" in
+        FILE )
+            readlink -f "$OBJECT"
+            ;;
+        * )
+            echo "$OBJECT"
+            ;;
+    esac
+}
+
+id-of() {
+    OBJECT="$1"
+    if [ -z "$OBJECT" ]; then
+        error "No Object passed"
+    fi
+    case "$( object-type "$OBJECT" )" in
+        FILE )
+            REG="$( regularize "$OBJECT" )"
+            db "SELECT id FROM objects WHERE value = '$REG' LIMIT 1"
+            ;;
+        URL )
+            db "SELECT id FROM objects WHERE value = '$OBJECT' LIMIT 1"
+            ;;
+        ID )
+            db "SELECT id FROM objects WHERE id = '$OBJECT'"
+            ;;
+        * )
+            error "Unsupported Object Type: $OBJECT"
+            ;;
+    esac
+}
+
+# Commands
+#
+hf-tail() {
+    N=10
+    FIELDS=value
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -n )
+                N=$2
+                shift 2
+                ;;
+            -I )
+                FIELDS="id,value"
+                shift
+                ;;
+            * )
+                error "Unknown Option: $1"
+                ;;
+        esac
+    done
+    db "SELECT $FIELDS FROM images ORDER BY id DESC LIMIT $N"
+}
+
+hf-add() {
+    OBJECT=""
+    TAGS=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -t | --tag )
+                TAGS="$TAGS $2"
+                shift 2
+                ;;
+            * )
+                OBJECT="$1"
+                shift 1
+                ;;
+        esac
+    done
+    if [ -z "$OBJECT" ]; then
+        error "No Object passed"
+    fi
+    EXT=$(db "SELECT count(*) FROM objects WHERE value = '$OBJECT'")
+    if [ "$EXT" -gt 0 ]; then
+        warn "Already exists: $OBJECT"
+        exit 0
+    fi
+    case "$(object-type "$OBJECT")" in
+        FILE )
+            hf-add-file "$OBJECT" "$TAGS"
+            ;;
+        URL )
+            hf-add-url "$OBJECT" "$TAGS"
+            ;;
+        * )
+            error "Unsupported Object Type: $OBJECT"
+            ;;
+    esac
+}
+
+hf-add-file() {
+    FILE="$1"
+    TAGS="$2"
+    REG="$(regularize "$FILE")"
+    info "Add $FILE ($REG) as File with Tags=$TAGS"
+    db "INSERT INTO objects(value) VALUES('$REG')"
+    ID=$(db "SELECT max(id) FROM objects")
+    db "INSERT INTO images VALUES($ID, '$REG')"
+    for t in $TAGS; do
+        db "INSERT INTO tags VALUES($ID, '$t')"
+    done
+}
+
+hf-add-url() {
+    URL="$1"
+    TAGS="$2"
+    info "Add $URL as URL with Tags=$TAGS"
+    db "INSERT INTO objects(value) VALUES('$URL')"
+    ID=$(db "SELECT max(id) FROM objects")
+    db "INSERT INTO images VALUES($ID, '$URL')"
+    for t in $TAGS; do
+        db "INSERT INTO tags VALUES($ID, '$t')"
+    done
+}
+
+hf-del() {
+    OBJECT="$1"
+    if [ -z "$OBJECT" ]; then
+        error "No Object passed"
+    fi
+    ID=$(id-of "$OBJECT")
+    db "DELETE FROM objects WHERE ID = $ID"
+    db "DELETE FROM images WHERE ID = $ID"
+    db "DELETE FROM tags WHERE ID = $ID"
+}
+
+hf-grep() {
+    db "SELECT value FROM images INNER JOIN tags ON images.id = tags.id WHERE tags.tag = '$1'"
+}
+
+hf-show() {
+    OBJECT="$1"
+    if [ -z "$OBJECT" ]; then
+        error "No Object passed"
+    fi
+    ID=$(id-of "$OBJECT")
+    if [ -z "$ID" ]; then
+        error "No Row for $OBJECT"
+    fi
+    VAL=$(db "SELECT value FROM objects WHERE id = $ID")
+    printf "\e[33mID\e[0m:    $ID\n"
+    printf "\e[33mVALUE\e[0m: $VAL\n"
+    printf "\e[35mIMAGES:\e[0m\n"
+    IMGS=$(db "SELECT value FROM images WHERE id = $ID")
+    for im in $IMGS; do
+        printf -- "- $im\n"
+    done
+    printf "\e[35mTAGS:\e[0m\n"
+    TAGS=$(db "SELECT tag FROM tags WHERE id = $ID")
+    for t in $TAGS; do
+        printf -- "- $t\n"
+    done
+
+}
+
+# Entry Point
+#
+case "$1" in
+    a | add )
+        shift 1
+        hf-add $@
+        ;;
+    d | del | rm )
+        shift 1
+        hf-del $@
+        ;;
+    tail )
+        shift 1
+        hf-tail $@
+        ;;
+    grep )
+        shift 1
+        hf-grep $@
+        ;;
+    show )
+        shift 1
+        hf-show $@
+        ;;
+    "" | help | -h | --help )
+        hf-help
+        ;;
+    * )
+        error "Unknown command: $1. See help"
+        ;;
+esac

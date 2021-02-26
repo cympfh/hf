@@ -1,7 +1,7 @@
 # objects
 
-| id    | INT  | PRIMARY KEY, Object ID       |
-| value | TEXT | Raw argument value as Object |
+| id    | INT  | PRIMARY KEY, Object ID      |
+| value | TEXT | Reguralized Value as Object |
 
 # images
 
