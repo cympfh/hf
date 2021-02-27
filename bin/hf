@@ -28,13 +28,13 @@ EOM
 }
 
 info() {
-    printf "\e[32m[$(date "+%Y-%m-%d %H:%M:%S")] $@\e[0m\n" >&2
+    printf "\e[32m[$(date "+%Y-%m-%d %H:%M:%S")] [L${BASH_LINENO}] $@\e[0m\n" >&2
 }
 warn() {
-    printf "\e[33m[$(date "+%Y-%m-%d %H:%M:%S")] $@\e[0m\n" >&2
+    printf "\e[33m[$(date "+%Y-%m-%d %H:%M:%S")] [L${BASH_LINENO}] $@\e[0m\n" >&2
 }
 error() {
-    printf "\e[31m[$(date "+%Y-%m-%d %H:%M:%S")] $@\e[0m\n" >&2
+    printf "\e[31m[$(date "+%Y-%m-%d %H:%M:%S")] [L${BASH_LINENO}] $@\e[0m\n" >&2
     exit 1
 }
 
@@ -88,6 +88,19 @@ EOM
 
 db-init
 
+# Twitter Utility
+HAS_TWITTER=0
+if ( which twurl >/dev/null ) && ( which jq >/dev/null ); then
+    HAS_TWITTER=1
+fi
+
+twitter-expand-medias() {
+    URL="$1"
+    TWID=$(echo "$URL" | grep -o '/status/[0-9]*' | grep -o '[0-9]*')
+    twurl "/1.1/statuses/show.json?id=$TWID&include_entities=true" |
+        jq -r .extended_entities.media[].media_url_https
+}
+
 # hf Utility
 #
 object-type() {
@@ -101,6 +114,8 @@ object-type() {
     elif ( echo "$OBJECT" | grep '^https\?://' >/dev/null ) &&
         ( curl -sLI "$OBJECT" | grep content-type | grep "image/" >/dev/null ); then
         echo URL
+    elif ( echo "$OBJECT" | grep 'twitter.com/.*/status/[0-9]*' >/dev/null ); then
+        echo TWITTER
     else
         error "Unknown Object: $OBJECT"
     fi
@@ -115,6 +130,9 @@ regularize() {
         FILE )
             readlink -f "$OBJECT"
             ;;
+        URL | TWITTER )
+            echo "$OBJECT" | sed 's/^ *https\?:/https:/g'
+            ;;
         * )
             echo "$OBJECT"
             ;;
@@ -128,10 +146,12 @@ id-of() {
     fi
     case "$( object-type "$OBJECT" )" in
         FILE )
-            REG="$( regularize "$OBJECT" )"
-            db "SELECT id FROM objects WHERE value = '$REG' LIMIT 1"
+            db "SELECT id FROM objects WHERE value = '$OBJECT' LIMIT 1"
             ;;
         URL )
+            db "SELECT id FROM objects WHERE value = '$OBJECT' LIMIT 1"
+            ;;
+        TWITTER )
             db "SELECT id FROM objects WHERE value = '$OBJECT' LIMIT 1"
             ;;
         ID )
@@ -184,8 +204,9 @@ hf-add() {
     if [ -z "$OBJECT" ]; then
         error "No Object passed"
     fi
-    EXT=$(db "SELECT count(*) FROM objects WHERE value = '$OBJECT'")
-    if [ "$EXT" -gt 0 ]; then
+    OBJECT="$(regularize $OBJECT)"
+    EXISTENCE=$(db "SELECT count(*) FROM objects WHERE value = '$OBJECT'")
+    if [ "$EXISTENCE" -gt 0 ]; then
         warn "Already exists: $OBJECT"
         exit 0
     fi
@@ -196,6 +217,9 @@ hf-add() {
         URL )
             hf-add-url "$OBJECT" "$TAGS"
             ;;
+        TWITTER )
+            hf-add-twitter "$OBJECT" "$TAGS"
+            ;;
         * )
             error "Unsupported Object Type: $OBJECT"
             ;;
@@ -205,11 +229,10 @@ hf-add() {
 hf-add-file() {
     FILE="$1"
     TAGS="$2"
-    REG="$(regularize "$FILE")"
-    info "Add $FILE ($REG) as File with Tags=$TAGS"
-    db "INSERT INTO objects(value) VALUES('$REG')"
+    info "Add $FILE as File with Tags=$TAGS"
+    db "INSERT INTO objects(value) VALUES('$FILE')"
     ID=$(db "SELECT max(id) FROM objects")
-    db "INSERT INTO images VALUES($ID, '$REG')"
+    db "INSERT INTO images VALUES($ID, '$FILE')"
     for t in $TAGS; do
         db "INSERT INTO tags VALUES($ID, '$t')"
     done
@@ -227,12 +250,31 @@ hf-add-url() {
     done
 }
 
+hf-add-twitter() {
+    URL="$1"
+    TAGS="$2"
+    info "Add $URL as URL with Tags=$TAGS"
+    db "INSERT INTO objects(value) VALUES('$URL')"
+    ID=$(db "SELECT max(id) FROM objects")
+    for IM in $(twitter-expand-medias "$URL"); do
+        info "Found: $IM"
+        db "INSERT INTO images VALUES($ID, '$IM')"
+    done
+    for t in $TAGS; do
+        db "INSERT INTO tags VALUES($ID, '$t')"
+    done
+}
+
 hf-del() {
     OBJECT="$1"
     if [ -z "$OBJECT" ]; then
         error "No Object passed"
     fi
     ID=$(id-of "$OBJECT")
+    if [ -z "$ID" ]; then
+        error "No Row for $OBJECT"
+    fi
+    info "Deleting $ID"
     db "DELETE FROM objects WHERE ID = $ID"
     db "DELETE FROM images WHERE ID = $ID"
     db "DELETE FROM tags WHERE ID = $ID"
@@ -247,6 +289,7 @@ hf-show() {
     if [ -z "$OBJECT" ]; then
         error "No Object passed"
     fi
+    OBJECT="$(regularize $OBJECT)"
     ID=$(id-of "$OBJECT")
     if [ -z "$ID" ]; then
         error "No Row for $OBJECT"
@@ -267,6 +310,12 @@ hf-show() {
 
 }
 
+hf-tags() {
+    if [ $# -eq 0 ]; then
+        db "SELECT distinct tag FROM tags group by tag ORDER BY max(id) DESC"
+    fi
+}
+
 # Entry Point
 #
 case "$1" in
@@ -282,13 +331,17 @@ case "$1" in
         shift 1
         hf-tail $@
         ;;
-    grep )
+    g | grep )
         shift 1
         hf-grep $@
         ;;
-    show )
+    s | show )
         shift 1
         hf-show $@
+        ;;
+    tag | tags )
+        shift 1
+        hf-tags $@
         ;;
     "" | help | -h | --help )
         hf-help

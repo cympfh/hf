@@ -11,6 +11,9 @@ export HF_DIR=/path/to/hf/cache/dir
 ## Requirements
 
 - sqlite3
+- For twitter URL
+    - twurl
+    - jq
 
 ## Commands
 
@@ -100,14 +103,15 @@ $ hf show <OBJECT>
     - [x] Check duplication [2021/02/27 (Sat) 00:23]
     - [x] Files [2021/02/26 (Fri) 23:38]
     - [x] Image Url [2021/02/27 (Sat) 00:20]
-    - [ ] Tweet Url
+    - [x] Tweet Url [2021/02/28 (Sun) 01:44]
+    - ...
 - DONE del [2021/02/27 (Sat) 01:22]
 - TODO grep
     - [x] Single Tag [2021/02/26 (Fri) 23:42]
     - [ ] AND grep
     - [ ] OR grep
 - TODO tags
-    - [ ] List up
+    - [x] List up [2021/02/28 (Sun) 01:44]
     - [ ] add
     - [ ] del
 - DONE tail
