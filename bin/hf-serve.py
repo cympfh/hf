@@ -77,6 +77,9 @@ if tags:
         # preview
         streamlit.write(f"{len(images)} Images for `{tags}`")
         idx = streamlit.number_input("index", min_value=1, step=1)
+        if idx > len(images):
+            streamlit.warning("Out of Index")
+            idx = len(images)
         img = images[idx - 1]
         streamlit.text(img)
         streamlit.image(img)
