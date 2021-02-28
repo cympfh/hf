@@ -119,12 +119,12 @@ $ hf show <OBJECT>
     - [x] List up [2021/02/28 (Sun) 01:44]
     - [x] add [2021/02/28 (Sun) 17:29]
     - [x] del [2021/02/28 (Sun) 17:48]
-- DONE tail
+- DONE tail, head, cat
 - DONE show [2021/02/27 (Sat) 01:22]
 - TODO clean
     - Remove objects with 0 images
     - 404 check
     - tag duplication
 - TODO viewer
-    - preview
-    - tag editor
+    - [x] preview [2021/02/28 (日) 20:35]
+    - [x] tag editor [2021/02/28 (日) 20:35]

@@ -496,6 +496,9 @@ hf-tags() {
                 shift
                 hf-tags-del $@
                 ;;
+            * )
+                hf-tags-listup $@
+                ;;
         esac
     fi
 }
@@ -518,7 +521,16 @@ EOM
 }
 
 hf-tags-listup() {
-    db "SELECT distinct tag FROM tags group by tag ORDER BY max(id) DESC"
+    FIELDS=tag
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --freq | -F )
+                FIELDS="count(distinct id),tag"
+                shift
+                ;;
+        esac
+    done
+    db "SELECT distinct $FIELDS FROM tags group by tag ORDER BY max(id) DESC"
 }
 
 hf-tags-mv() {
