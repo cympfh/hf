@@ -98,6 +98,14 @@ db-insert-tags() {
     done
 }
 
+db-delete-tags() {
+    ID=$1
+    TAGS=$2
+    for tag in $TAGS; do
+        db "DELETE FROM tags WHERE id = $ID AND tag = '$tag'"
+    done
+}
+
 # Twitter Utility
 HAS_TWITTER=0
 if ( which twurl >/dev/null ) && ( which jq >/dev/null ); then
@@ -407,7 +415,7 @@ hf-tags() {
         hf-tags-help
     fi
     if [ $# -eq 0 ]; then
-        db "SELECT distinct tag FROM tags group by tag ORDER BY max(id) DESC"
+        hf-tags-listup
     else
         case "$1" in
             mv )
@@ -417,6 +425,10 @@ hf-tags() {
             add )
                 shift
                 hf-tags-add $@
+                ;;
+            del | rm )
+                shift
+                hf-tags-del $@
                 ;;
         esac
     fi
@@ -437,6 +449,10 @@ SYNOPSIS for hf-tags
     hf tags add <OBJECT> -t <TAG> [-t <TAG>...]
         Append tags <TAG>... into <OBJECT>
 EOM
+}
+
+hf-tags-listup() {
+    db "SELECT distinct tag FROM tags group by tag ORDER BY max(id) DESC"
 }
 
 hf-tags-mv() {
@@ -472,6 +488,32 @@ hf-tags-add() {
     fi
     info "Add tags=$TAGS into $OBJECT (ID=$ID)"
     db-insert-tags "$ID" "$TAGS"
+}
+
+hf-tags-del() {
+    OBJECT=
+    TAGS=
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -t | --tag )
+                TAGS="$TAGS $2"
+                shift 2
+                ;;
+            * )
+                OBJECT=$1
+                shift
+                ;;
+        esac
+    done
+    if [ -z "$OBJECT" ] || [ -z "$TAGS" ]; then
+        error "Insufficient Args (See \`hf tags help\`)"
+    fi
+    ID=$(id-of "$OBJECT")
+    if [ -z "$ID" ]; then
+        error "No Row for $OBJECT"
+    fi
+    info "Delete tags=$TAGS from $OBJECT (ID=$ID)"
+    db-delete-tags "$ID" "$TAGS"
 }
 
 # Entry Point

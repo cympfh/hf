@@ -113,10 +113,10 @@ $ hf show <OBJECT>
     - [x] AND grep [2021/02/28 (Sun) 17:29]
     - [x] OR grep [2021/02/28 (Sun) 17:29]
     - [x] -I [2021/02/28 (Sun) 17:29]
-- TODO tags
+- DONE tags [2021/02/28 (Sun) 17:49]
     - [x] List up [2021/02/28 (Sun) 01:44]
     - [x] add [2021/02/28 (Sun) 17:29]
-    - [ ] del
+    - [x] del [2021/02/28 (Sun) 17:48]
 - DONE tail
 - DONE show [2021/02/27 (Sat) 01:22]
 - TODO clean
