@@ -190,6 +190,43 @@ id-of() {
 
 # Commands
 #
+hf-cat() {
+    FIELDS=value
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -I )
+                FIELDS="id,value"
+                shift
+                ;;
+            * )
+                error "Unknown Option: $1"
+                ;;
+        esac
+    done
+    db "SELECT $FIELDS FROM images ORDER BY id ASC"
+}
+
+hf-head() {
+    N=10
+    FIELDS=value
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -n )
+                N=$2
+                shift 2
+                ;;
+            -I )
+                FIELDS="id,value"
+                shift
+                ;;
+            * )
+                error "Unknown Option: $1"
+                ;;
+        esac
+    done
+    db "SELECT $FIELDS FROM images ORDER BY id ASC LIMIT $N"
+}
+
 hf-tail() {
     N=10
     FIELDS=value
@@ -569,6 +606,14 @@ case "$1" in
     d | del | rm )
         shift 1
         hf-del $@
+        ;;
+    cat )
+        shift 1
+        hf-cat $@
+        ;;
+    head )
+        shift 1
+        hf-head $@
         ;;
     tail )
         shift 1
