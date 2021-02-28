@@ -396,6 +396,7 @@ hf-grep() {
             QUERY="$QUERY $MODE tags.tag = '$t'"
         fi
     done
+    QUERY="$QUERY ORDER BY images.id DESC"
     db "$QUERY"
 }
 

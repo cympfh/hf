@@ -91,7 +91,7 @@ elif sidetag:
     target = sidetag
 elif rand:
     images = Hf.images_random()
-    target = 'random'
+    target = "random"
 else:
     streamlit.stop()
 
@@ -116,22 +116,23 @@ except Exception as err:
     streamlit.image(img, output_format="JPEG")
 
 detail = Hf.show(img)
+detail["tags"] = [str(t) for t in detail["tags"]]
 
 # Tag Editing
 img_tags = detail["tags"]
-user_tags = streamlit.text_input(
-    "tags", value=" ".join(img_tags), key=img
-).split()
+user_tags = streamlit.text_input("tags", value=" ".join(img_tags), key=img).split()
 tags_add = set(user_tags) - set(img_tags)
 tags_del = set(img_tags) - set(user_tags)
+
 if len(tags_add) > 0:
     Hf.add_tags(detail["id"], tags_add)
     streamlit.info(f"add {tags_add}")
+
 if len(tags_del) > 0:
     Hf.del_tags(detail["id"], tags_del)
     streamlit.info(f"del {tags_del}")
 
+detail["tags"] = user_tags  # update
+
 # Image Detail
-if img_tags != user_tags:
-    detail = Hf.show(img)
 streamlit.write(detail)
