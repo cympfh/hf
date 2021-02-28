@@ -127,7 +127,7 @@ object-type() {
         error "Object required"
     elif ( echo "$OBJECT" | grep '^[0-9]*$' >/dev/null ); then
         echo ID
-    elif [ -f "$OBJECT" ] && ( file "$OBJECT" | grep "image data," >/dev/null ); then
+    elif [ -f "$OBJECT" ] && ( file "$OBJECT" | grep "image data" >/dev/null ); then
         echo FILE
     elif ( echo "$OBJECT" | grep '^https\?://' >/dev/null ) &&
         ( curl -sLI "$OBJECT" | grep content-type | grep "image/" >/dev/null ); then
@@ -462,18 +462,18 @@ hf-show() {
         done
 
     else
-        Q=".id=$ID .value=$VAL"
+        Q="-e .id=$ID -e '.value=$VAL'"
         IDX=0
         for im in $IMGS; do
-            Q="$Q .images[$IDX]=$im"
+            Q="$Q -e '.images[$IDX]=$im'"
             IDX=$(( IDX + 1 ))
         done
         IDX=0
         for t in $TAGS; do
-            Q="$Q .tags[$IDX]=$t"
+            Q="$Q -e '.tags[$IDX]=$t'"
             IDX=$(( IDX + 1 ))
         done
-        qj -e $Q
+        echo qj $Q | sh
     fi
 }
 
