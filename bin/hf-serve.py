@@ -9,6 +9,7 @@ from typing import List, Set
 import streamlit
 
 logger = logging.getLogger("hf-serve")
+streamlit.set_page_config(layout="wide")
 
 
 class Hf:
@@ -29,7 +30,9 @@ class Hf:
         """hf grep"""
         cmd = ["hf", "grep"] + tags.split()
         logger.info(cmd)
-        stdout = subprocess.run(cmd, capture_output=True).stdout.decode()
+        stdout = subprocess.run(cmd, capture_output=True).stdout.decode().strip()
+        if not stdout:
+            return []
         images = stdout.strip().split("\n")
         if rand:
             random.shuffle(images)
@@ -96,41 +99,46 @@ elif rand:
 else:
     streamlit.stop()
 
+
+left, right = streamlit.beta_columns(2)
+
 # Search result
 if len(images) == 0:
-    streamlit.error(f"No Images for `{target}`")
+    left.error(f"No Images for `{target}`")
     streamlit.stop()
 
-streamlit.write(f"{len(images)} Images for `{target}`")
+left.write(f"{len(images)} Images for `{target}`")
 
 # Preview
-idx = streamlit.number_input("index", min_value=1, max_value=len(images), step=1)
+idx = left.number_input("index", min_value=1, max_value=len(images), step=1)
 img = images[idx - 1]
-streamlit.text(img)
+left.text(img)
+logger.info(img)
 try:
-    streamlit.image(img)
+    left.image(img)
 except Exception as err:
-    streamlit.warning(err)
-    streamlit.image(img, output_format="JPEG")
+    left.warning(err)
+    left.image(img, output_format="JPEG")
 
 detail = Hf.show(img)
+logger.info(detail)
 detail["tags"] = [str(t) for t in detail["tags"]]
 
 # Tag Editing
 img_tags = detail["tags"]
-user_tags = streamlit.text_input("tags", value=" ".join(img_tags), key=img).split()
+user_tags = right.text_input("tags", value=" ".join(img_tags), key=img).split()
 tags_add = set(user_tags) - set(img_tags)
 tags_del = set(img_tags) - set(user_tags)
 
 if len(tags_add) > 0:
     Hf.add_tags(detail["id"], tags_add)
-    streamlit.info(f"add {tags_add}")
+    right.info(f"add {tags_add}")
 
 if len(tags_del) > 0:
     Hf.del_tags(detail["id"], tags_del)
-    streamlit.info(f"del {tags_del}")
+    right.info(f"del {tags_del}")
 
 detail["tags"] = user_tags  # update
 
 # Image Detail
-streamlit.write(detail)
+right.write(detail)
