@@ -14,6 +14,15 @@ class Hf:
     """Wrapper for hf command"""
 
     @classmethod
+    @streamlit.cache
+    def tags(cls) -> List[str]:
+        """All tags"""
+        cmd = ["hf", "tags"]
+        logger.info(cmd)
+        stdout = subprocess.run(cmd, capture_output=True).stdout.decode()
+        return stdout.strip().split()
+
+    @classmethod
     def images_by_tags(cls, tags: str) -> List[str]:
         """hf grep"""
         cmd = ["hf", "grep"] + tags.split()
@@ -54,7 +63,12 @@ class Hf:
         subprocess.run(cmd)
 
 
-tags = streamlit.text_input("Filtering by Tags")
+sidetag = streamlit.sidebar.selectbox("Select Tags", [""] + Hf.tags())
+tags = streamlit.sidebar.text_input("Filtering by Tags")
+
+if not tags:
+    tags = sidetag
+
 if tags:
     images = Hf.images_by_tags(tags)
     if len(images) == 0:
@@ -62,9 +76,7 @@ if tags:
     else:
         # preview
         streamlit.write(f"{len(images)} Images for `{tags}`")
-        idx = streamlit.number_input(
-            "index", min_value=1, max_value=len(images), step=1
-        )
+        idx = streamlit.number_input("index", min_value=1, step=1)
         img = images[idx - 1]
         streamlit.text(img)
         streamlit.image(img)
@@ -73,7 +85,9 @@ if tags:
 
         # tag editing
         img_tags = detail["tags"]
-        user_tags = streamlit.text_input("tags", value=" ".join(img_tags), key=img).split()
+        user_tags = streamlit.text_input(
+            "tags", value=" ".join(img_tags), key=img
+        ).split()
         tags_add = set(user_tags) - set(img_tags)
         tags_del = set(img_tags) - set(user_tags)
         if len(tags_add) > 0:
