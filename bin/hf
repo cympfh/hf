@@ -386,7 +386,7 @@ hf-grep() {
     if [ -z "$TAGS" ]; then
         error "Insufficient Args (See \`hf grep help\`)"
     fi
-    QUERY="SELECT $FIELDS FROM images INNER JOIN tags ON images.id = tags.id"
+    QUERY="SELECT distinct $FIELDS FROM images INNER JOIN tags ON images.id = tags.id"
     FIRST=1
     for t in $TAGS; do
         if [ $FIRST -eq 1 ]; then
