@@ -104,15 +104,25 @@ $ hf show <OBJECT>
     - [x] Files [2021/02/26 (Fri) 23:38]
     - [x] Image Url [2021/02/27 (Sat) 00:20]
     - [x] Tweet Url [2021/02/28 (Sun) 01:44]
+    - [ ] pixiv Url
+    - [ ] nijie Url
     - ...
 - DONE del [2021/02/27 (Sat) 01:22]
-- TODO grep
+- DONE grep [2021/02/28 (Sun) 17:29]
     - [x] Single Tag [2021/02/26 (Fri) 23:42]
-    - [ ] AND grep
-    - [ ] OR grep
+    - [x] AND grep [2021/02/28 (Sun) 17:29]
+    - [x] OR grep [2021/02/28 (Sun) 17:29]
+    - [x] -I [2021/02/28 (Sun) 17:29]
 - TODO tags
     - [x] List up [2021/02/28 (Sun) 01:44]
-    - [ ] add
+    - [x] add [2021/02/28 (Sun) 17:29]
     - [ ] del
 - DONE tail
 - DONE show [2021/02/27 (Sat) 01:22]
+- TODO clean
+    - Remove objects with 0 images
+    - 404 check
+    - tag duplication
+- TODO viewer
+    - preview
+    - tag editor

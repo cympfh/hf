@@ -9,8 +9,9 @@ hf-help() {
 SYNOPSIS
 
     hf {add,del,show} <OBJECT>
-    hf grep <TAG>
-    hf tail
+    hf grep [-I] <TAG> [<TAG>...]
+    hf tags [-I]
+    hf tail [-n <N>]
 EOM
 }
 
@@ -28,13 +29,13 @@ EOM
 }
 
 info() {
-    printf "\e[32m[$(date "+%Y-%m-%d %H:%M:%S")] [L${BASH_LINENO}] $@\e[0m\n" >&2
+    printf "\e[32m[$(date "+%Y-%m-%d %H:%M:%S")] [L${BASH_LINENO}] $1\e[0m\n" >&2
 }
 warn() {
-    printf "\e[33m[$(date "+%Y-%m-%d %H:%M:%S")] [L${BASH_LINENO}] $@\e[0m\n" >&2
+    printf "\e[33m[$(date "+%Y-%m-%d %H:%M:%S")] [L${BASH_LINENO}] $1\e[0m\n" >&2
 }
 error() {
-    printf "\e[31m[$(date "+%Y-%m-%d %H:%M:%S")] [L${BASH_LINENO}] $@\e[0m\n" >&2
+    printf "\e[31m[$(date "+%Y-%m-%d %H:%M:%S")] [L${BASH_LINENO}] $1\e[0m\n" >&2
     exit 1
 }
 
@@ -86,7 +87,16 @@ EOM
     fi
 }
 
+# init every running
 db-init
+
+db-insert-tags() {
+    ID=$1
+    TAGS=$2
+    for tag in $TAGS; do
+        db "INSERT INTO tags VALUES($ID, '$tag')"
+    done
+}
 
 # Twitter Utility
 HAS_TWITTER=0
@@ -144,6 +154,13 @@ id-of() {
     if [ -z "$OBJECT" ]; then
         error "No Object passed"
     fi
+    # Scan by images
+    NUM=$(db "SELECT count(distinct id) FROM images WHERE value = '$OBJECT'")
+    if [ "$NUM" -eq 1 ]; then
+        db "SELECT distinct id FROM images WHERE value = '$OBJECT'"
+        return
+    fi
+    # Scan by object-type
     case "$( object-type "$OBJECT" )" in
         FILE )
             db "SELECT id FROM objects WHERE value = '$OBJECT' LIMIT 1"
@@ -187,6 +204,10 @@ hf-tail() {
 }
 
 hf-add() {
+    if [ $# -eq 1 ] && [ "$1" = "help" ]; then
+        hf-add-help
+        return
+    fi
     OBJECT=""
     TAGS=""
     while [ $# -gt 0 ]; do
@@ -202,7 +223,7 @@ hf-add() {
         esac
     done
     if [ -z "$OBJECT" ]; then
-        error "No Object passed"
+        error "No Object passed (See \`hf add help\`)"
     fi
     OBJECT="$(regularize $OBJECT)"
     EXISTENCE=$(db "SELECT count(*) FROM objects WHERE value = '$OBJECT'")
@@ -226,6 +247,22 @@ hf-add() {
     esac
 }
 
+hf-add-help() {
+    hf-logo
+    cat <<EOM >&2
+
+SYNOPSIS for hf-add
+
+    hf add <OBJECT> [ -t <TAG> ...]
+
+        Add <OBJECT> with tags <TAG>...
+        OBJECT can be
+        - Image File Path,
+        - Image Url,
+        - Tweet Url (https://twitter.com/*/status/*),
+EOM
+}
+
 hf-add-file() {
     FILE="$1"
     TAGS="$2"
@@ -233,9 +270,7 @@ hf-add-file() {
     db "INSERT INTO objects(value) VALUES('$FILE')"
     ID=$(db "SELECT max(id) FROM objects")
     db "INSERT INTO images VALUES($ID, '$FILE')"
-    for t in $TAGS; do
-        db "INSERT INTO tags VALUES($ID, '$t')"
-    done
+    db-insert-tags "$ID" "$TAGS"
 }
 
 hf-add-url() {
@@ -245,9 +280,7 @@ hf-add-url() {
     db "INSERT INTO objects(value) VALUES('$URL')"
     ID=$(db "SELECT max(id) FROM objects")
     db "INSERT INTO images VALUES($ID, '$URL')"
-    for t in $TAGS; do
-        db "INSERT INTO tags VALUES($ID, '$t')"
-    done
+    db-insert-tags "$ID" "$TAGS"
 }
 
 hf-add-twitter() {
@@ -260,9 +293,7 @@ hf-add-twitter() {
         info "Found: $IM"
         db "INSERT INTO images VALUES($ID, '$IM')"
     done
-    for t in $TAGS; do
-        db "INSERT INTO tags VALUES($ID, '$t')"
-    done
+    db-insert-tags "$ID" "$TAGS"
 }
 
 hf-del() {
@@ -281,7 +312,68 @@ hf-del() {
 }
 
 hf-grep() {
-    db "SELECT value FROM images INNER JOIN tags ON images.id = tags.id WHERE tags.tag = '$1'"
+    if [ $# -eq 1 ] && [ "$1" = "help" ]; then
+        hf-grep-help
+    fi
+    FIELDS=value
+    TAGS=
+    MODE=AND
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -I )
+                FIELDS="images.id,value"
+                shift
+                ;;
+            -a | --and )
+                MODE=AND
+                shift
+                ;;
+            -o | --or )
+                MODE=OR
+                shift
+                ;;
+            * )
+                TAGS="$TAGS $1"
+                shift
+                ;;
+        esac
+    done
+    if [ -z "$TAGS" ]; then
+        error "Insufficient Args (See \`hf grep help\`)"
+    fi
+    QUERY="SELECT $FIELDS FROM images INNER JOIN tags ON images.id = tags.id"
+    FIRST=1
+    for t in $TAGS; do
+        if [ $FIRST -eq 1 ]; then
+            QUERY="$QUERY WHERE tags.tag = '$t'"
+            FIRST=0
+        else
+            QUERY="$QUERY $MODE tags.tag = '$t'"
+        fi
+    done
+    db "$QUERY"
+}
+
+hf-grep-help() {
+    hf-logo
+    cat <<EOM >&2
+
+SYNOPSIS for hf-grep
+
+    hf grep [OPTION] <TAG>
+        Search with a Tag
+
+    hf grep [OPTION] -a <TAG> [<TAG>...]
+        AND-search with multiple Tags
+
+    hg grep [OPTION] -o <TAG> [<TAG>...]
+        OR-search with multiple Tags
+
+OPTION
+    -I
+        Print IDs
+EOM
+    exit
 }
 
 hf-show() {
@@ -311,9 +403,75 @@ hf-show() {
 }
 
 hf-tags() {
+    if [ $# -eq 1 ] && [ "$1" = "help" ]; then
+        hf-tags-help
+    fi
     if [ $# -eq 0 ]; then
         db "SELECT distinct tag FROM tags group by tag ORDER BY max(id) DESC"
+    else
+        case "$1" in
+            mv )
+                shift
+                hf-tags-mv $@
+                ;;
+            add )
+                shift
+                hf-tags-add $@
+                ;;
+        esac
     fi
+}
+
+hf-tags-help() {
+    hf-logo
+    cat <<EOM >&2
+
+SYNOPSIS for hf-tags
+
+    hf tags
+        List up all tags Ordered by the descending frequency
+
+    hf tags mv <TAG_SRC> <TAG_TGT>
+        Rename all tags <TAG_SRC> to <TAG_TGT>
+
+    hf tags add <OBJECT> -t <TAG> [-t <TAG>...]
+        Append tags <TAG>... into <OBJECT>
+EOM
+}
+
+hf-tags-mv() {
+    SRC=$1
+    TGT=$2
+    if [ -z "$TGT" ]; then
+        error "Insufficient Args"
+    fi
+    db "UPDATE tags SET tag='$TGT' WHERE tag='$SRC'"
+}
+
+hf-tags-add() {
+    OBJECT=
+    TAGS=
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -t | --tag )
+                TAGS="$TAGS $2"
+                shift 2
+                ;;
+            * )
+                OBJECT=$1
+                shift
+                ;;
+        esac
+    done
+    if [ -z "$OBJECT" ] || [ -z "$TAGS" ]; then
+        error "Insufficient Args (See \`hf tags help\`)"
+    fi
+    ID=$(id-of "$OBJECT")
+    if [ -z "$ID" ]; then
+        error "No Row for $OBJECT"
+    fi
+    info "Add tags=$TAGS into $OBJECT (ID=$ID)"
+    db-insert-tags "$ID" "$TAGS"
 }
 
 # Entry Point
@@ -339,7 +497,7 @@ case "$1" in
         shift 1
         hf-show $@
         ;;
-    tag | tags )
+    t | tag | tags )
         shift 1
         hf-tags $@
         ;;
