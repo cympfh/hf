@@ -14,6 +14,8 @@ export HF_DIR=/path/to/hf/cache/dir
 - For twitter URL
     - twurl
     - jq
+- For `--json`
+    - qj
 
 ## Commands
 

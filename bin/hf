@@ -385,7 +385,20 @@ EOM
 }
 
 hf-show() {
-    OBJECT="$1"
+    OBJECT=
+    JSON=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --json )
+                JSON=1
+                shift
+                ;;
+            * )
+                OBJECT=$1
+                shift
+                ;;
+        esac
+    done
     if [ -z "$OBJECT" ]; then
         error "No Object passed"
     fi
@@ -395,19 +408,35 @@ hf-show() {
         error "No Row for $OBJECT"
     fi
     VAL=$(db "SELECT value FROM objects WHERE id = $ID")
-    printf "\e[33mID\e[0m:    $ID\n"
-    printf "\e[33mVALUE\e[0m: $VAL\n"
-    printf "\e[35mIMAGES:\e[0m\n"
     IMGS=$(db "SELECT value FROM images WHERE id = $ID")
-    for im in $IMGS; do
-        printf -- "- $im\n"
-    done
-    printf "\e[35mTAGS:\e[0m\n"
     TAGS=$(db "SELECT tag FROM tags WHERE id = $ID")
-    for t in $TAGS; do
-        printf -- "- $t\n"
-    done
 
+    if [ $JSON -eq 0 ]; then
+        printf "\e[33mID\e[0m:    $ID\n"
+        printf "\e[33mVALUE\e[0m: $VAL\n"
+        printf "\e[35mIMAGES:\e[0m\n"
+        for im in $IMGS; do
+            printf -- "- $im\n"
+        done
+        printf "\e[35mTAGS:\e[0m\n"
+        for t in $TAGS; do
+            printf -- "- $t\n"
+        done
+
+    else
+        Q=".id=$ID .value=$VAL"
+        IDX=0
+        for im in $IMGS; do
+            Q="$Q .images[$IDX]=$im"
+            IDX=$(( IDX + 1 ))
+        done
+        IDX=0
+        for t in $TAGS; do
+            Q="$Q .tags[$IDX]=$t"
+            IDX=$(( IDX + 1 ))
+        done
+        qj -e $Q
+    fi
 }
 
 hf-tags() {
@@ -516,6 +545,20 @@ hf-tags-del() {
     db-delete-tags "$ID" "$TAGS"
 }
 
+hf-serve() {
+    SCRIPT=$1
+    shift
+    PORT=8080
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --port | -P | -p )
+                PORT=$2
+                shift 2
+        esac
+    done
+    streamlit run --server.port "$PORT" "$SCRIPT"
+}
+
 # Entry Point
 #
 case "$1" in
@@ -545,6 +588,12 @@ case "$1" in
         ;;
     "" | help | -h | --help )
         hf-help
+        ;;
+    serve )
+        SCRIPT=$(readlink -f $0)
+        SCRIPTDIR=$(dirname $SCRIPT)
+        shift
+        hf-serve "$SCRIPTDIR/hf-serve.py" $@
         ;;
     * )
         error "Unknown command: $1. See help"
