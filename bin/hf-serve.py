@@ -15,7 +15,7 @@ class Hf:
     """Wrapper for hf command"""
 
     @classmethod
-    @streamlit.cache(ttl=300)
+    @streamlit.cache
     def tags(cls) -> List[str]:
         """All tags"""
         cmd = ["hf", "tags"]
@@ -24,14 +24,15 @@ class Hf:
         return stdout.strip().split()
 
     @classmethod
-    @streamlit.cache(ttl=300)
+    @streamlit.cache
     def images_by_tags(cls, tags: str, rand: bool) -> List[str]:
         """hf grep"""
         cmd = ["hf", "grep"] + tags.split()
         logger.info(cmd)
         stdout = subprocess.run(cmd, capture_output=True).stdout.decode()
-        images = stdout.strip().split()
-        random.shuffle(images)
+        images = stdout.strip().split("\n")
+        if rand:
+            random.shuffle(images)
         return images
 
     @classmethod
@@ -67,12 +68,12 @@ class Hf:
         subprocess.run(cmd)
 
     @classmethod
-    @streamlit.cache(ttl=300)
+    @streamlit.cache
     def images_random(cls) -> List[str]:
         """Random"""
         cmd = ["hf", "cat"]
         stdout = subprocess.run(cmd, capture_output=True).stdout.decode()
-        images = stdout.split()
+        images = stdout.split("\n")
         random.shuffle(images)
         return images
 
@@ -103,10 +104,7 @@ if len(images) == 0:
 streamlit.write(f"{len(images)} Images for `{target}`")
 
 # Preview
-idx = streamlit.number_input("index", min_value=1, step=1)
-if idx > len(images):
-    streamlit.warning("Out of Index")
-    idx = len(images)
+idx = streamlit.number_input("index", min_value=1, max_value=len(images), step=1)
 img = images[idx - 1]
 streamlit.text(img)
 try:
