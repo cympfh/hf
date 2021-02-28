@@ -66,17 +66,24 @@ if tags:
             "index", min_value=1, max_value=len(images), step=1
         )
         img = images[idx - 1]
+        streamlit.text(img)
         streamlit.image(img)
 
         detail = Hf.show(img)
 
         # tag editing
-        tags = detail["tags"]
-        tags_user = streamlit.text_input("tags", value=" ".join(tags)).split()
-        tags_add = set(tags_user) - set(tags)
-        tags_del = set(tags) - set(tags_user)
-        Hf.add_tags(detail["id"], tags_add)
-        Hf.del_tags(detail["id"], tags_del)
+        img_tags = detail["tags"]
+        user_tags = streamlit.text_input("tags", value=" ".join(img_tags), key=img).split()
+        tags_add = set(user_tags) - set(img_tags)
+        tags_del = set(img_tags) - set(user_tags)
+        if len(tags_add) > 0:
+            Hf.add_tags(detail["id"], tags_add)
+            streamlit.info(f"add {tags_add}")
+        if len(tags_del) > 0:
+            Hf.del_tags(detail["id"], tags_del)
+            streamlit.info(f"del {tags_del}")
 
         # show detail for debugging
+        if img_tags != user_tags:
+            detail = Hf.show(img)
         streamlit.write(detail)
