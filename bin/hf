@@ -386,17 +386,34 @@ hf-grep() {
     if [ -z "$TAGS" ]; then
         error "Insufficient Args (See \`hf grep help\`)"
     fi
-    QUERY="SELECT distinct $FIELDS FROM images INNER JOIN tags ON images.id = tags.id"
-    FIRST=1
-    for t in $TAGS; do
-        if [ $FIRST -eq 1 ]; then
-            QUERY="$QUERY WHERE tags.tag = '$t'"
-            FIRST=0
-        else
-            QUERY="$QUERY $MODE tags.tag = '$t'"
-        fi
-    done
-    QUERY="$QUERY ORDER BY images.id DESC"
+    case "$MODE" in
+        OR )
+            QUERY="SELECT distinct $FIELDS FROM images INNER JOIN tags ON images.id = tags.id"
+            FIRST=1
+            for t in $TAGS; do
+                if [ $FIRST -eq 1 ]; then
+                    QUERY="$QUERY WHERE tags.tag = '$t'"
+                    FIRST=0
+                else
+                    QUERY="$QUERY $MODE tags.tag = '$t'"
+                fi
+            done
+            QUERY="$QUERY ORDER BY images.id DESC"
+            ;;
+        AND )
+            QUERY=
+            FIRST=1
+            for t in $TAGS; do
+                if [ $FIRST -eq 1 ]; then
+                    QUERY="SELECT images.id FROM images INNER JOIN tags ON images.id = tags.id AND tags.tag = '$t'"
+                    FIRST=0
+                else
+                    QUERY="$QUERY INTERSECT SELECT images.id FROM images INNER JOIN tags ON images.id = tags.id AND tags.tag = '$t'"
+                fi
+            done
+            QUERY="SELECT $FIELDS FROM images WHERE id in ( $QUERY )"
+            ;;
+    esac
     db "$QUERY"
 }
 
