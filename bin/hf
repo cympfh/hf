@@ -56,10 +56,16 @@ HF_DB="$HF_DIR/db"
 
 db() {
     if [ $# -eq 0 ]; then
-        sqlite3 -separator "	" "$HF_DB"
+        QUERY="$(cat)"
     else
-        sqlite3 -separator "	" "$HF_DB" "$1"
+        QUERY="$1"
     fi
+    while ! sqlite3 -separator "	" "$HF_DB" "$QUERY"; do
+        error "SQlite3 Failed"
+        error "$QUERY"
+        error "Retry again!"
+        sleep 1
+    done
 }
 
 db-init() {
