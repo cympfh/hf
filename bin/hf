@@ -386,6 +386,7 @@ hf-del() {
     if [ -z "$OBJECT" ]; then
         error "No Object passed"
     fi
+    OBJECT="$(regularize $OBJECT)"
     ID=$(id-of "$OBJECT")
     if [ -z "$ID" ]; then
         error "No Row for $OBJECT"
