@@ -125,6 +125,18 @@ twitter-expand-medias() {
         jq -r .extended_entities.media[].media_url_https
 }
 
+# Nijie Utility
+nijie-expand-medias() {
+    if [ -z "$NIJIEIJIEID" ]; then
+        error "Set \$NIJIEIJIEID to expand nijie medias"
+    fi
+    URL="$1"
+    NIJIEID=$(echo "$URL" | grep -o 'id=[0-9]*' | grep -o '[0-9]*')
+    curl -sL "http://nijie.info/view_popup.php?id=$NIJIEID" -H "Cookie: R18=1; NIJIEIJIEID=$NIJIEIJIEID" |
+        web-grep '<div id=img_window><img class="box-shadow999" src="{}" /></div>' |
+        sed 's/.*/https:&/g'
+}
+
 # hf Utility
 #
 object-type() {
@@ -140,6 +152,8 @@ object-type() {
         echo URL
     elif ( echo "$OBJECT" | grep 'twitter.com/.*/status/[0-9]*' >/dev/null ); then
         echo TWITTER
+    elif ( echo "$OBJECT" | grep 'nijie.info/.*id=[0-9]*' >/dev/null ); then
+        echo NIJIE
     else
         error "Unknown Object: $OBJECT"
     fi
@@ -156,6 +170,10 @@ regularize() {
             ;;
         URL | TWITTER )
             echo "$OBJECT" | sed 's/^ *https\?:/https:/g'
+            ;;
+        NIJIE )
+            echo "$OBJECT" | sed 's/^ *https\?:/https:/g' |
+                sed 's/view_popup/view/'
             ;;
         * )
             echo "$OBJECT"
@@ -182,7 +200,7 @@ id-of() {
         URL )
             db "SELECT id FROM objects WHERE value = '$OBJECT' LIMIT 1"
             ;;
-        TWITTER )
+        TWITTER | NIJIE )
             db "SELECT id FROM objects WHERE value = '$OBJECT' LIMIT 1"
             ;;
         ID )
@@ -292,6 +310,9 @@ hf-add() {
         TWITTER )
             hf-add-twitter "$OBJECT" "$TAGS"
             ;;
+        NIJIE )
+            hf-add-nijie "$OBJECT" "$TAGS"
+            ;;
         * )
             error "Unsupported Object Type: $OBJECT"
             ;;
@@ -337,10 +358,23 @@ hf-add-url() {
 hf-add-twitter() {
     URL="$1"
     TAGS="$2"
-    info "Add $URL as URL with Tags=$TAGS"
+    info "Add $URL as Tweet URL with Tags=$TAGS"
     db "INSERT INTO objects(value) VALUES('$URL')"
     ID=$(db "SELECT max(id) FROM objects")
     for IM in $(twitter-expand-medias "$URL"); do
+        info "Found: $IM"
+        db "INSERT INTO images VALUES($ID, '$IM')"
+    done
+    db-insert-tags "$ID" "$TAGS"
+}
+
+hf-add-nijie() {
+    URL="$1"
+    TAGS="$2"
+    info "Add $URL as Nijie URL with Tags=$TAGS"
+    db "INSERT INTO objects(value) VALUES('$URL')"
+    ID=$(db "SELECT max(id) FROM objects")
+    for IM in $(nijie-expand-medias "$URL"); do
         info "Found: $IM"
         db "INSERT INTO images VALUES($ID, '$IM')"
     done
