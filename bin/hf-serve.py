@@ -16,7 +16,7 @@ class Hf:
     """Wrapper for hf command"""
 
     @classmethod
-    @streamlit.cache
+    @streamlit.experimental_memo
     def tags(cls) -> List[str]:
         """All tags"""
         cmd = ["hf", "tags"]
@@ -25,7 +25,7 @@ class Hf:
         return ["null"] + stdout.strip().split()
 
     @classmethod
-    @streamlit.cache
+    @streamlit.experimental_memo
     def images_by_tags(cls, tags: str, rand: bool) -> List[str]:
         """hf grep"""
         cmd = ["hf", "grep"] + tags.split()
@@ -112,7 +112,7 @@ left.write(f"{len(images)} Images for `{target}`")
 # Preview
 idx = left.number_input("index", min_value=1, max_value=len(images), step=1)
 img = images[idx - 1]
-left.text(f"{img=}")
+left.text_input("img", img, disabled=True)
 logger.info(img)
 try:
     left.image(img)
@@ -125,14 +125,19 @@ detail["tags"] = [str(t) for t in detail.get("tags", [])]
 logger.info(detail)
 
 # Tag Editing
+updated = False
+
 img_tags = detail["tags"]
-user_tags = right.text_input("tags", value=" ".join(img_tags), key=img).split()
+user_tags = right.multiselect("tags", options=Hf.tags(), default=img_tags, key=img)
+user_tags += right.text_input("new tags", value="", key=img).split()
+logger.info(f"{user_tags=}")
 tags_add = set(user_tags) - set(img_tags)
 tags_del = set(img_tags) - set(user_tags)
 
 if len(tags_add) > 0:
     Hf.add_tags(detail["id"], tags_add)
     right.info(f"add {tags_add}")
+    updated = True
 
 if len(tags_del) > 0:
     Hf.del_tags(detail["id"], tags_del)
@@ -142,3 +147,8 @@ detail["tags"] = user_tags  # update
 
 # Image Detail
 right.write(detail)
+
+# Clear Caching if update
+if updated:
+    logger.info("Updated")
+    Hf.tags.clear()
