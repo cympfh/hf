@@ -22,7 +22,7 @@ class Hf:
         cmd = ["hf", "tags"]
         logger.info(cmd)
         stdout = subprocess.run(cmd, capture_output=True).stdout.decode()
-        return stdout.strip().split()
+        return ["null"] + stdout.strip().split()
 
     @classmethod
     @streamlit.cache
@@ -100,7 +100,7 @@ else:
     streamlit.stop()
 
 
-left, right = streamlit.beta_columns(2)
+left, right = streamlit.columns(2)
 
 # Search result
 if len(images) == 0:
@@ -112,7 +112,7 @@ left.write(f"{len(images)} Images for `{target}`")
 # Preview
 idx = left.number_input("index", min_value=1, max_value=len(images), step=1)
 img = images[idx - 1]
-left.text(img)
+left.text(f"{img=}")
 logger.info(img)
 try:
     left.image(img)
@@ -121,8 +121,8 @@ except Exception as err:
     left.image(img, output_format="JPEG")
 
 detail = Hf.show(img)
+detail["tags"] = [str(t) for t in detail.get("tags", [])]
 logger.info(detail)
-detail["tags"] = [str(t) for t in detail["tags"]]
 
 # Tag Editing
 img_tags = detail["tags"]

@@ -456,13 +456,17 @@ hf-grep() {
                 MODE=OR
                 shift
                 ;;
+            null | NULL )
+                MODE=NULL
+                shift
+                ;;
             * )
                 TAGS="$TAGS $1"
                 shift
                 ;;
         esac
     done
-    if [ -z "$TAGS" ]; then
+    if [ "$MODE" != "NULL" ] && [ -z "$TAGS" ]; then
         error "Insufficient Args (See \`hf grep help\`)"
     fi
     case "$MODE" in
@@ -492,6 +496,9 @@ hf-grep() {
             done
             QUERY="SELECT $FIELDS FROM images WHERE id in ( $QUERY )"
             ;;
+        NULL )
+            QUERY="SELECT $FIELDS FROM images LEFT OUTER JOIN tags ON images.id = tags.id WHERE tags.id IS NULL"
+            ;;
     esac
     db "$QUERY"
 }
@@ -508,8 +515,11 @@ SYNOPSIS for hf-grep
     hf grep [OPTION] -a <TAG> [<TAG>...]
         AND-search with multiple Tags
 
-    hg grep [OPTION] -o <TAG> [<TAG>...]
+    hf grep [OPTION] -o <TAG> [<TAG>...]
         OR-search with multiple Tags
+
+    hf grep NULL
+        Images without Tags
 
 OPTION
     -I
