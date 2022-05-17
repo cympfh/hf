@@ -12,6 +12,7 @@ SYNOPSIS
     hf grep [-I] <TAG> [<TAG>...]
     hf tags [-I]
     hf tail [-n <N>]
+    hf info
 EOM
 }
 
@@ -130,11 +131,30 @@ nijie-expand-medias() {
     if [ -z "$NIJIEIJIEID" ]; then
         error "Set \$NIJIEIJIEID to expand nijie medias"
     fi
+    if [ -z "$NIJIE_TOK" ]; then
+        error "Set \$NIJIE_TOK to expand nijie medias"
+    fi
     URL="$1"
     NIJIEID=$(echo "$URL" | grep -o 'id=[0-9]*' | grep -o '[0-9]*')
-    curl -sL "http://nijie.info/view_popup.php?id=$NIJIEID" -H "Cookie: R18=1; NIJIEIJIEID=$NIJIEIJIEID" |
+    curl -sL "http://nijie.info/view_popup.php?id=$NIJIEID" \
+        -H "Cookie: R18=1; NIJIEIJIEID=$NIJIEIJIEID; nijie_tok=$NIJIE_TOK" |
         web-grep '<div id=img_window><img class="box-shadow999" src="{}" /></div>' |
         sed 's/.*/https:&/g'
+}
+
+# Pixiv Utility
+pixiv-download-medias() {
+    if [ -z "$PIXIV_ACCESSTOKEN" ] || [ -z "$PIXIV_REFRESHTOKEN" ]; then
+        error "Set \$PIXIV_ACCESSTOKEN and \$PIXIV_REFRESHTOKEN to use pixiv API"
+    fi
+    if [ -z "$HF_PIXIV_DIR" ]; then
+        error "Set \$HF_PIXIV_DIR to download images"
+    fi
+    URL="$1"
+    PIXIV_ID=$(echo "$URL" | grep -o '[0-9][0-9]*' | head -1)
+    PIXIV_USER=$(pixiv detail $PIXIV_ID | jq -r .illust.user.account)
+    mkdir -p "${HF_PIXIV_DIR}${PIXIV_USER}/${PIXIV_ID}"
+    pixiv download "$PIXIV_ID" -O "${HF_PIXIV_DIR}${PIXIV_USER}/${PIXIV_ID}/"
 }
 
 # hf Utility
@@ -154,6 +174,8 @@ object-type() {
         echo TWITTER
     elif ( echo "$OBJECT" | grep 'nijie.info/.*id=[0-9]*' >/dev/null ); then
         echo NIJIE
+    elif ( echo "$OBJECT" | grep 'https://www.pixiv.net/artworks/[0-9]*' >/dev/null ); then
+        echo PIXIV
     else
         error "Unknown Object: $OBJECT"
     fi
@@ -200,7 +222,7 @@ id-of() {
         URL )
             db "SELECT id FROM objects WHERE value = '$OBJECT' LIMIT 1"
             ;;
-        TWITTER | NIJIE )
+        TWITTER | NIJIE | PIXIV )
             db "SELECT id FROM objects WHERE value = '$OBJECT' LIMIT 1"
             ;;
         ID )
@@ -313,6 +335,9 @@ hf-add() {
         NIJIE )
             hf-add-nijie "$OBJECT" "$TAGS"
             ;;
+        PIXIV )
+            hf-add-pixiv "$OBJECT" "$TAGS"
+            ;;
         * )
             error "Unsupported Object Type: $OBJECT"
             ;;
@@ -375,6 +400,19 @@ hf-add-nijie() {
     db "INSERT INTO objects(value) VALUES('$URL')"
     ID=$(db "SELECT max(id) FROM objects")
     for IM in $(nijie-expand-medias "$URL"); do
+        info "Found: $IM"
+        db "INSERT INTO images VALUES($ID, '$IM')"
+    done
+    db-insert-tags "$ID" "$TAGS"
+}
+
+hf-add-pixiv() {
+    URL="$1"
+    TAGS="$2"
+    info "Add $URL as Pixiv URL with Tags=$TAGS"
+    db "INSERT INTO objects(value) VALUES('$URL')"
+    ID=$(db "SELECT max(id) FROM objects")
+    for IM in $(pixiv-download-medias "$URL"); do
         info "Found: $IM"
         db "INSERT INTO images VALUES($ID, '$IM')"
     done
@@ -710,6 +748,11 @@ case "$1" in
         SCRIPTDIR=$(dirname $SCRIPT)
         shift
         hf-serve "$SCRIPTDIR/hf-serve.py" $@
+        ;;
+    info )
+        info "HF_DIR = $HF_DIR"
+        info "HF_DB = $HF_DB"
+        info "HF_PIXIV_DIR = $HF_PIXIV_DIR"
         ;;
     * )
         error "Unknown command: $1. See help"

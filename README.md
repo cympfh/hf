@@ -106,8 +106,8 @@ $ hf show <OBJECT>
     - [x] Files [2021/02/26 (Fri) 23:38]
     - [x] Image Url [2021/02/27 (Sat) 00:20]
     - [x] Tweet Url [2021/02/28 (Sun) 01:44]
-    - [ ] pixiv Url
-    - [ ] nijie Url
+    - [x] pixiv Url [2022/05/18 (Wed) 01:14]
+    - [x] nijie Url
     - ...
 - DONE del [2021/02/27 (Sat) 01:22]
 - DONE grep [2021/02/28 (Sun) 17:29]
