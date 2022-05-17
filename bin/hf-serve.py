@@ -20,7 +20,7 @@ class Hf:
     def tags(cls) -> List[str]:
         """All tags"""
         cmd = ["hf", "tags"]
-        logger.info(cmd)
+        logger.info("Hf.tags: %s", cmd)
         stdout = subprocess.run(cmd, capture_output=True).stdout.decode()
         return ["null"] + stdout.strip().split()
 
@@ -29,7 +29,7 @@ class Hf:
     def images_by_tags(cls, tags: str, rand: bool) -> List[str]:
         """hf grep"""
         cmd = ["hf", "grep"] + tags.split()
-        logger.info(cmd)
+        logger.info("Hf.images_by_tags: %s", cmd)
         stdout = subprocess.run(cmd, capture_output=True).stdout.decode().strip()
         if not stdout:
             return []
@@ -42,7 +42,7 @@ class Hf:
     def show(cls, object: str) -> dict:
         """hf show --json"""
         cmd = ["hf", "show", "--json", object]
-        logger.info(cmd)
+        logger.info("Hf.show: %s", cmd)
         stdout = subprocess.run(cmd, capture_output=True).stdout.decode()
         return json.loads(stdout)
 
@@ -55,7 +55,7 @@ class Hf:
         cmd = ["hf", "tags", "add", str(id)]
         for t in tags:
             cmd += ["-t", t]
-        logger.info(cmd)
+        logger.info("Hf.add_tags: %s", cmd)
         subprocess.run(cmd)
 
     @classmethod
@@ -67,7 +67,7 @@ class Hf:
         cmd = ["hf", "tags", "del", str(id)]
         for t in tags:
             cmd += ["-t", t]
-        logger.info(cmd)
+        logger.info("Hf.del_tags: %s", cmd)
         subprocess.run(cmd)
 
     @classmethod
@@ -80,10 +80,17 @@ class Hf:
         random.shuffle(images)
         return images
 
+    @classmethod
+    def delete(cls, img: str):
+        cmd = ["hf", "del", img]
+        logger.info("Hf.delete: %s", cmd)
+        stdout = subprocess.run(cmd, capture_output=True).stdout.decode()
+
 
 sidetag = streamlit.sidebar.selectbox("Select Tags", [""] + Hf.tags())
 filtertags = streamlit.sidebar.text_input("Filtering by Tags")
 rand = streamlit.sidebar.checkbox("Random")
+logger.info(f"{sidetag=}, {filtertags=}, {rand=}")
 
 images = []
 
@@ -99,6 +106,7 @@ elif rand:
 else:
     streamlit.stop()
 
+logger.info("%s images found", len(images))
 
 left, right = streamlit.columns(2)
 
@@ -113,21 +121,24 @@ left.write(f"{len(images)} Images for `{target}`")
 idx = left.number_input("index", min_value=1, max_value=len(images), step=1)
 img = images[idx - 1]
 left.text_input("img", img, disabled=True)
-logger.info(img)
 try:
     left.image(img)
 except Exception as err:
     left.warning(err)
     left.image(img, output_format="JPEG")
 
+logger.info("Fetching medata for %s", img)
 detail = Hf.show(img)
 detail["tags"] = [str(t) for t in detail.get("tags", [])]
-logger.info(detail)
+logger.info(f"{detail=}")
 
 # Tag Editing
+updated = False
 img_tags = detail["tags"]
-user_tags = right.multiselect("tags", options=Hf.tags(), default=img_tags, key=img)
-user_tags += right.text_input("new tags", value="", key=img).split()
+user_tags = right.multiselect(
+    "tags", options=Hf.tags(), default=img_tags, key=f"{img}_a"
+)
+user_tags += right.text_input("new tags", value="", key=f"{img}_b").split()
 logger.info(f"{user_tags=}")
 tags_add = set(user_tags) - set(img_tags)
 tags_del = set(img_tags) - set(user_tags)
@@ -135,12 +146,22 @@ tags_del = set(img_tags) - set(user_tags)
 if len(tags_add) > 0:
     Hf.add_tags(detail["id"], tags_add)
     right.info(f"add {tags_add}")
+    updated = True
 
 if len(tags_del) > 0:
     Hf.del_tags(detail["id"], tags_del)
     right.info(f"del {tags_del}")
+    updated = True
 
 detail["tags"] = user_tags  # update
 
 # Image Detail
 right.write(detail)
+
+if right.button("Delete this"):
+    Hf.delete(img)
+    updated = True
+
+if updated:
+    logger.info("Re-Run")
+    streamlit.experimental_rerun()
