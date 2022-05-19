@@ -407,6 +407,9 @@ hf-add-nijie() {
 }
 
 hf-add-pixiv() {
+    if ( ! pixiv check ); then
+        error "Something Error in Pixiv API"
+    fi
     URL="$1"
     TAGS="$2"
     info "Add $URL as Pixiv URL with Tags=$TAGS"
