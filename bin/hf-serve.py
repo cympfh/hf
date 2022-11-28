@@ -16,7 +16,7 @@ class Hf:
     """Wrapper for hf command"""
 
     @classmethod
-    @streamlit.cache
+    @streamlit.cache(suppress_st_warning=True, allow_output_mutation=True)
     def tags(cls) -> List[str]:
         """All tags"""
         cmd = ["hf", "tags"]
@@ -25,7 +25,7 @@ class Hf:
         return ["null"] + stdout.strip().split()
 
     @classmethod
-    @streamlit.cache
+    @streamlit.cache(suppress_st_warning=True)
     def images_by_tags(cls, tags: str, rand: bool) -> List[str]:
         """hf grep"""
         cmd = ["hf", "grep"] + tags.split()
@@ -71,7 +71,7 @@ class Hf:
         subprocess.run(cmd)
 
     @classmethod
-    @streamlit.cache
+    @streamlit.cache(suppress_st_warning=True)
     def images_random(cls) -> List[str]:
         """Random"""
         cmd = ["hf", "cat"]
@@ -84,7 +84,7 @@ class Hf:
     def delete(cls, img: str):
         cmd = ["hf", "del", img]
         logger.info("Hf.delete: %s", cmd)
-        stdout = subprocess.run(cmd, capture_output=True).stdout.decode()
+        subprocess.run(cmd, capture_output=True).stdout.decode()
 
 
 sidetag = streamlit.sidebar.selectbox("Select Tags", [""] + Hf.tags())
@@ -138,7 +138,9 @@ img_tags = detail["tags"]
 user_tags = right.multiselect(
     "tags", options=Hf.tags(), default=img_tags, key=f"{img}_a"
 )
-user_tags += right.text_input("new tags", value="", key=f"{img}_b").split()
+new_tags = list(set(right.text_input("new tags", value="", key=f"{img}_b").split()))
+Hf.tags().extend(new_tags)
+user_tags += new_tags
 logger.info(f"{user_tags=}")
 tags_add = set(user_tags) - set(img_tags)
 tags_del = set(img_tags) - set(user_tags)
