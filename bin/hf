@@ -123,7 +123,7 @@ twitter-expand-medias() {
     URL="$1"
     TWID=$(echo "$URL" | grep -o '/status/[0-9]*' | grep -o '[0-9]*')
     twurl "/1.1/statuses/show.json?id=$TWID&include_entities=true" |
-        jq -r .extended_entities.media[].media_url_https
+        jq -r '.extended_entities.media[] | if .video_info then .video_info.variants[-1].url else .media_url_https end'
 }
 
 # Nijie Utility
