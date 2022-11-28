@@ -13,6 +13,7 @@ SYNOPSIS
     hf tags [-I]
     hf tail [-n <N>]
     hf info
+    hf serve
 EOM
 }
 

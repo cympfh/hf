@@ -2,21 +2,23 @@
 
 import json
 import logging
-import random
 import subprocess
 from typing import List, Set
 
 import streamlit
 
 logger = logging.getLogger("hf-serve")
-streamlit.set_page_config(layout="wide")
+streamlit.set_page_config(
+    layout="wide",
+    page_title="hf",
+)
 
 
 class Hf:
     """Wrapper for hf command"""
 
     @classmethod
-    @streamlit.cache(suppress_st_warning=True, allow_output_mutation=True)
+    @streamlit.cache(suppress_st_warning=True)
     def tags(cls) -> List[str]:
         """All tags"""
         cmd = ["hf", "tags"]
@@ -26,7 +28,7 @@ class Hf:
 
     @classmethod
     @streamlit.cache(suppress_st_warning=True)
-    def images_by_tags(cls, tags: str, rand: bool) -> List[str]:
+    def images_by_tags(cls, tags: str) -> List[str]:
         """hf grep"""
         cmd = ["hf", "grep"] + tags.split()
         logger.info("Hf.images_by_tags: %s", cmd)
@@ -34,8 +36,6 @@ class Hf:
         if not stdout:
             return []
         images = stdout.strip().split("\n")
-        if rand:
-            random.shuffle(images)
         return images
 
     @classmethod
@@ -44,6 +44,8 @@ class Hf:
         cmd = ["hf", "show", "--json", object]
         logger.info("Hf.show: %s", cmd)
         stdout = subprocess.run(cmd, capture_output=True).stdout.decode()
+        if not stdout:
+            return {}
         return json.loads(stdout)
 
     @classmethod
@@ -71,39 +73,25 @@ class Hf:
         subprocess.run(cmd)
 
     @classmethod
-    @streamlit.cache(suppress_st_warning=True)
-    def images_random(cls) -> List[str]:
-        """Random"""
-        cmd = ["hf", "cat"]
-        stdout = subprocess.run(cmd, capture_output=True).stdout.decode()
-        images = stdout.split("\n")
-        random.shuffle(images)
-        return images
-
-    @classmethod
     def delete(cls, img: str):
         cmd = ["hf", "del", img]
         logger.info("Hf.delete: %s", cmd)
         subprocess.run(cmd, capture_output=True).stdout.decode()
 
 
-sidetag = streamlit.sidebar.selectbox("Select Tags", [""] + Hf.tags())
-filtertags = streamlit.sidebar.text_input("Filtering by Tags")
-rand = streamlit.sidebar.checkbox("Random")
-logger.info(f"{sidetag=}, {filtertags=}, {rand=}")
+hftags = Hf.tags()
+
+tags = streamlit.sidebar.multiselect("Tags", options=[""] + hftags)
+shuffle = streamlit.sidebar.checkbox("Shuffle")
+logger.info(f"Filter by {tags=}, {shuffle=}")
 
 images = []
 
-if filtertags:
-    images = Hf.images_by_tags(filtertags, rand)
-    target = filtertags
-elif sidetag:
-    images = Hf.images_by_tags(sidetag, rand)
-    target = sidetag
-elif rand:
-    images = Hf.images_random()
-    target = "random"
+if tags:
+    target = " ".join(tags)
+    images = Hf.images_by_tags(target)
 else:
+    streamlit.info("Select tags from left Panel")
     streamlit.stop()
 
 logger.info("%s images found", len(images))
@@ -118,52 +106,64 @@ if len(images) == 0:
 left.write(f"{len(images)} Images for `{target}`")
 
 # Preview
-idx = left.number_input("index", min_value=1, max_value=len(images), step=1)
-img = images[idx - 1]
-left.text_input("img", img, disabled=True)
-try:
-    left.image(img)
-except Exception as err:
-    left.warning(err)
+idx = int(left.number_input("index", min_value=1, max_value=len(images), step=1))
+img = images[idx - 1] if not shuffle else images[(idx + len(images) // 2) % len(images)]
+if ".mp4" in img:
+    left.video(img)
+elif ".jpg" in img or ".jpeg" in img:
     left.image(img, output_format="JPEG")
+else:
+    left.image(img)
 
 logger.info("Fetching medata for %s", img)
 detail = Hf.show(img)
+
+if not detail:
+    streamlit.error(f"Not found: {img}")
+    streamlit.stop()
+else:
+    right.caption(detail["value"])
+    right.caption(img)
+
 detail["tags"] = [str(t) for t in detail.get("tags", [])]
 logger.info(f"{detail=}")
 
 # Tag Editing
-updated = False
 img_tags = detail["tags"]
-user_tags = right.multiselect(
-    "tags", options=Hf.tags(), default=img_tags, key=f"{img}_a"
-)
-new_tags = list(set(right.text_input("new tags", value="", key=f"{img}_b").split()))
-Hf.tags().extend(new_tags)
-user_tags += new_tags
-logger.info(f"{user_tags=}")
-tags_add = set(user_tags) - set(img_tags)
-tags_del = set(img_tags) - set(user_tags)
 
-if len(tags_add) > 0:
-    Hf.add_tags(detail["id"], tags_add)
-    right.info(f"add {tags_add}")
-    updated = True
 
-if len(tags_del) > 0:
-    Hf.del_tags(detail["id"], tags_del)
-    right.info(f"del {tags_del}")
-    updated = True
+def update(tags_old: set[str], tags_new: set[str]):
+    tags_add = tags_new - tags_old
+    tags_del = tags_old - tags_new
+    if len(tags_add) > 0:
+        Hf.add_tags(detail["id"], tags_add)
+        right.info(f"add {tags_add}")
+    if len(tags_del) > 0:
+        Hf.del_tags(detail["id"], tags_del)
+        right.info(f"del {tags_del}")
 
-detail["tags"] = user_tags  # update
 
-# Image Detail
+with right.form("tag_editor"):
+    user_tags = streamlit.multiselect(
+        "tags",
+        options=(set(hftags) | set(img_tags)),
+        default=img_tags,
+        key=f"{img}_a",
+    )
+    new_tags = list(
+        set(streamlit.text_input("new tags", value="", key=f"{img}_b").split())
+    )
+    user_tags += new_tags
+    submit = streamlit.form_submit_button("Update")
+    if submit:
+        update(set(img_tags), set(user_tags))
+
+detail = Hf.show(img)
 right.write(detail)
 
-if right.button("Delete this"):
-    Hf.delete(img)
-    updated = True
+if right.button("Remove"):
+    user_tags = ["removed"]
+    update(set(img_tags), set(user_tags))
 
-if updated:
-    logger.info("Re-Run")
-    streamlit.experimental_rerun()
+if right.button("Delete this (permanently)", type="primary"):
+    Hf.delete(img)
